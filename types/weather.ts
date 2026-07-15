@@ -31,10 +31,12 @@ export interface HourlyForecast {
 }
 
 export interface DailyForecast {
-  day: string;         // যেমন "Mon"
-  high: number;        // °C
-  low: number;         // °C
+  date: string;          // যেমন "2026-07-15" — React key হিসেবেও ব্যবহার হয়
+  day: string;           // যেমন "Mon" বা "Today"
+  high: number;          // °C
+  low: number;           // °C
   condition: WeatherCondition;
+  precipitation: number; // mm — বৃষ্টির পরিমাণ
 }
 
 export interface WeatherData {

@@ -170,11 +170,14 @@ export function mapWeatherResponse(
 ): WeatherData {
   const { current, daily } = apiResponse;
 
-  const mappedDaily: DailyForecast[] = daily.map((d) => ({
-    day:       formatDayAbbr(d.date),
-    high:      Math.round(d.temp_max),
-    low:       Math.round(d.temp_min),
-    condition: weathercodeToCondition(d.weathercode, 1), // daily = always daytime icon
+  // প্রথম দিন "Today" দেখাবো — বাকিগুলো weekday abbreviation।
+  const mappedDaily: DailyForecast[] = daily.map((d, idx) => ({
+    date:          d.date,
+    day:           idx === 0 ? "Today" : formatDayAbbr(d.date),
+    high:          Math.round(d.temp_max),
+    low:           Math.round(d.temp_min),
+    condition:     weathercodeToCondition(d.weathercode, 1), // daily = daytime icon
+    precipitation: Math.round(d.precipitation * 10) / 10,   // 1 দশমিক পর্যন্ত mm
   }));
 
   return {
