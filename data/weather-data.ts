@@ -1,4 +1,4 @@
-import type { WeatherData } from "./types";
+import type { WeatherData } from "@/types";
 
 // UI ডিজাইনের জন্য static dummy data। পরে এখানে আসল API-র data বসবে।
 export const dummyWeather: WeatherData = {

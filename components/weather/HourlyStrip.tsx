@@ -2,14 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import type { CarouselApi } from "@/components/ui/carousel";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-} from "@/components/ui/carousel";
+
 import WeatherIcon from "./WeatherIcon";
-import { HourlyForecast } from "@/lib/types";
+import { HourlyForecast } from "@/types";
+import { Carousel, CarouselApi, CarouselContent, CarouselItem } from "../ui/carousel";
 
 interface HourlyStripProps {
   hourly: HourlyForecast[];

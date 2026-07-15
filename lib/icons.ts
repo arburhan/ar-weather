@@ -1,4 +1,4 @@
-import type { WeatherCondition } from "./types";
+import type { WeatherCondition } from "@/types";
 
 // প্রতিটা কন্ডিশনকে meteocons/lottie-এর slug-এ ম্যাপ করি।
 // এই slug থেকেই WeatherIcon কম্পোনেন্ট animation JSON লোড করবে।

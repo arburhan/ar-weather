@@ -1,7 +1,7 @@
 
-import { dummyWeather } from "@/lib/dummy";
-import DesktopWeather from "../components/DesktopWeather";
-import MobileWeather from "../components/MobileWeather";
+import { dummyWeather } from "@/data/weather-data";
+import DesktopWeather from "@/components/weather/DesktopWeather";
+import MobileWeather from "@/components/weather/MobileWeather";
 
 // server component — dummy data ধরে দুটো layout render করে।
 // responsive টগল: মোবাইলে MobileWeather, md+ এ DesktopWeather।

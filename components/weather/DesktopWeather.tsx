@@ -1,5 +1,5 @@
 
-import { WeatherData } from "@/lib/types";
+import { WeatherData } from "@/types";
 import HourlyStrip from "./HourlyStrip";
 
 

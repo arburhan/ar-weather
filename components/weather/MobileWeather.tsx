@@ -1,7 +1,7 @@
 
 import WeatherIcon from "./WeatherIcon";
 import HourlyStrip from "./HourlyStrip";
-import { WeatherData } from "@/lib/types";
+import { WeatherData } from "@/types";
 
 // মোবাইল layout — ছোট স্ক্রিনের জন্য (md-এর নিচে দেখানো হয়)।
 // সেকশনগুলো উপর-নিচে স্ট্যাক করা, touch scroll-বান্ধব।

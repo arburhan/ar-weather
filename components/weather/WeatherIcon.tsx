@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Lottie from "lottie-react";
-import { WeatherCondition } from "@/lib/types";
+import { WeatherCondition } from "@/types";
 import { slugFor } from "@/lib/icons";
 
 
