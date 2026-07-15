@@ -1,4 +1,4 @@
-import type { WeatherCondition } from "@/types";
+import type { WeatherCondition, WeatherData, HourlyForecast, DailyForecast } from "@/types";
 
 // ── Raw API Response Types ─────────────────────────────────────────────
 export interface WeatherAICurrentRaw {
@@ -37,55 +37,23 @@ export function weathercodeToCondition(
 ): WeatherCondition {
   const day = isDay === 1;
 
-  // 0 — Clear sky
   if (code === 0) return day ? "clear-day" : "clear-night";
-
-  // 1 — Mainly clear
   if (code === 1) return day ? "clear-day" : "clear-night";
-
-  // 2 — Partly cloudy
   if (code === 2) return day ? "partly-cloudy-day" : "partly-cloudy-night";
-
-  // 3 — Overcast
   if (code === 3) return "overcast";
-
-  // 45, 48 — Fog / Rime fog
   if (code === 45 || code === 48) return "fog";
-
-  // 51–55 — Drizzle (light → dense)
   if (code >= 51 && code <= 55) return "drizzle";
-
-  // 56–57 — Freezing drizzle
   if (code === 56 || code === 57) return "drizzle";
-
-  // 61–65 — Rain (slight → heavy)
   if (code >= 61 && code <= 65) return "rain";
-
-  // 66–67 — Freezing rain
   if (code === 66 || code === 67) return "rain";
-
-  // 71–77 — Snow / Snow grains
   if (code >= 71 && code <= 77) return "snow";
-
-  // 80–82 — Rain showers (slight → violent)
   if (code >= 80 && code <= 82) return "rain";
-
-  // 83–84 — Sleet showers
   if (code === 83 || code === 84) return "sleet";
-
-  // 85–86 — Snow showers
   if (code === 85 || code === 86) return "snow";
-
-  // 95 — Thunderstorm (slight/moderate)
   if (code === 95) return "thunderstorm";
-
-  // 96, 99 — Thunderstorm with hail
   if (code === 96 || code === 99) return "thunderstorm";
-
-  // 85+ cloudy fallback
   if (code > 3 && code < 45) return "cloudy";
 
-  // Default fallback
   return day ? "clear-day" : "clear-night";
 }
 
@@ -127,6 +95,103 @@ export function weathercodeToDescription(code: number): string {
   return WMO_DESCRIPTIONS[code] ?? "Unknown";
 }
 
+// ── Day abbreviation ───────────────────────────────────────────────────
+// "2026-07-15" → "Mon". noon offset দিয়ে timezone shift avoid করি।
+function formatDayAbbr(dateStr: string): string {
+  const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const d = new Date(`${dateStr}T12:00:00`);
+  return DAYS[d.getDay()];
+}
+
+// ── Hourly derivation from current + daily ─────────────────────────────
+// API-তে hourly endpoint নেই — daily max/min + sinusoidal curve দিয়ে
+// পরবর্তী 12 ঘণ্টার realistic hourly forecast তৈরি করি।
+//
+// Temp curve মডেল (সাধারণ meteorological pattern):
+//   • সর্বনিম্ন: ভোর ৫টায় (05:00)
+//   • সর্বোচ্চ:  বিকাল ২টায় (14:00)
+//   • sin-curve দিয়ে smooth interpolation
+function deriveHourlyForecast(
+  current: WeatherAICurrentRaw,
+  daily: WeatherAIDailyRaw[],
+  count = 12
+): HourlyForecast[] {
+  const hourly: HourlyForecast[] = [];
+  // current.time = "2026-07-15T19:00" — local datetime
+  const startMs = new Date(current.time).getTime();
+
+  for (let i = 0; i < count; i++) {
+    const slotMs   = startMs + i * 60 * 60 * 1000;
+    const slotDate = new Date(slotMs);
+    const hour     = slotDate.getHours();
+
+    // কোন day-এর data নেব (আজ = 0, কাল = 1 ...)
+    const startMidnight = new Date(new Date(current.time).toDateString()).getTime();
+    const dayOffset = Math.floor((slotMs - startMidnight) / (24 * 60 * 60 * 1000));
+    const dayData   = daily[Math.min(dayOffset, daily.length - 1)] ?? daily[daily.length - 1];
+
+    // ── Sinusoidal temp curve ──────────────────────────────────────────
+    // min at 05:00, max at 14:00 → phase shift = 5h, period = 24h
+    // formula: T = avg + amplitude * sin(2π/24 * (hour - minHour - 6))
+    // simplified: fraction 0→1 peak at 14:00
+    const MIN_HOUR = 5;
+    const MAX_HOUR = 14;
+    const cycleHour = ((hour - MIN_HOUR) + 24) % 24; // 0 at min, 9 at max
+    const phaseRad  = (cycleHour / (MAX_HOUR - MIN_HOUR)) * Math.PI;
+    const fraction  = Math.max(0, Math.sin(phaseRad));  // 0..1
+
+    const temp = Math.round(
+      dayData.temp_min + fraction * (dayData.temp_max - dayData.temp_min)
+    );
+
+    // ── Day/night for condition icon ───────────────────────────────────
+    const isDay: 0 | 1 = (hour >= 6 && hour < 20) ? 1 : 0;
+
+    // ── Label ─────────────────────────────────────────────────────────
+    const label = i === 0
+      ? "Now"
+      : `${String(hour).padStart(2, "0")}:00`;
+
+    hourly.push({
+      time:      label,
+      temp,
+      condition: weathercodeToCondition(dayData.weathercode, isDay),
+    });
+  }
+
+  return hourly;
+}
+
+// ── Map full API response → app's WeatherData ──────────────────────────
+// এই function-টি page.tsx ও server action — দুটো থেকেই ব্যবহার হয়।
+export function mapWeatherResponse(
+  apiResponse: WeatherAIResponse,
+  locationName: string
+): WeatherData {
+  const { current, daily } = apiResponse;
+
+  const mappedDaily: DailyForecast[] = daily.map((d) => ({
+    day:       formatDayAbbr(d.date),
+    high:      Math.round(d.temp_max),
+    low:       Math.round(d.temp_min),
+    condition: weathercodeToCondition(d.weathercode, 1), // daily = always daytime icon
+  }));
+
+  return {
+    current: {
+      location:    locationName,
+      temp:        Math.round(current.temperature),
+      feelsLike:   Math.round(current.temperature), // API-তে feels_like নেই
+      condition:   weathercodeToCondition(current.weathercode, current.is_day),
+      description: weathercodeToDescription(current.weathercode),
+      humidity:    0,           // current endpoint-এ humidity নেই
+      windKph:     current.windspeed,
+    },
+    hourly: deriveHourlyForecast(current, daily, 12),
+    daily:  mappedDaily,
+  };
+}
+
 // ── API Fetch ──────────────────────────────────────────────────────────
 const BASE_URL = "https://api.weather-ai.co/v1/weather";
 
@@ -158,8 +223,7 @@ export async function fetchWeatherByCoords(
 
 // .env.local এর default location দিয়ে fetch — page.tsx initial load এ ব্যবহার হয়।
 export async function fetchCurrentWeather(): Promise<WeatherAIResponse> {
-  const lat = process.env.WEATHER_LAT  ?? "23.8103";
-  const lon = process.env.WEATHER_LON  ?? "90.4125";
-  // user-triggered refresh হলে cache নেই (0) — page load এ 10 মিনিট cache
+  const lat = process.env.WEATHER_LAT ?? "23.8103";
+  const lon = process.env.WEATHER_LON ?? "90.4125";
   return fetchWeatherByCoords(lat, lon, 600);
 }

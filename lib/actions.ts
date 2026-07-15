@@ -2,8 +2,7 @@
 
 import {
   fetchWeatherByCoords,
-  weathercodeToCondition,
-  weathercodeToDescription,
+  mapWeatherResponse,
 } from "@/lib/weather-api";
 import { dummyWeather } from "@/data/weather-data";
 import type { WeatherData } from "@/types";
@@ -26,24 +25,10 @@ export async function getWeatherAction(
       return { data: dummyWeather, error: "Invalid coordinates" };
     }
 
-    const apiResponse = await fetchWeatherByCoords(lat, lon);
-    const { current } = apiResponse;
+    const apiResponse = await fetchWeatherByCoords(lat, lon, 0); // no cache — user-triggered
+    const name = locationName ?? `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
 
-    const data: WeatherData = {
-      current: {
-        location: locationName ?? `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`,
-        temp: Math.round(current.temperature),
-        feelsLike: Math.round(current.temperature),
-        condition: weathercodeToCondition(current.weathercode, current.is_day),
-        description: weathercodeToDescription(current.weathercode),
-        humidity: 0,
-        windKph: current.windspeed,
-      },
-      hourly: dummyWeather.hourly,
-      daily: dummyWeather.daily,
-    };
-
-    return { data };
+    return { data: mapWeatherResponse(apiResponse, name) };
   } catch (err) {
     console.error("[getWeatherAction]", err);
     return { data: dummyWeather, error: "Failed to fetch weather" };
